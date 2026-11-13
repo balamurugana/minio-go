@@ -25,6 +25,7 @@ import (
 	"iter"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/minio/minio-go/v7/pkg/s3utils"
@@ -130,10 +131,13 @@ type AdvancedRemoveOptions struct {
 
 // RemoveObjectOptions represents options specified by user for RemoveObject call
 type RemoveObjectOptions struct {
-	ForceDelete      bool
-	GovernanceBypass bool
-	VersionID        string
-	Internal         AdvancedRemoveOptions
+	ForceDelete             bool
+	GovernanceBypass        bool
+	VersionID               string
+	IfMatch                 string
+	IfMatchLastModifiedTime time.Time
+	IfMatchSize             *int64
+	Internal                AdvancedRemoveOptions
 }
 
 // RemoveObject removes an object from a bucket.
@@ -183,6 +187,15 @@ func (c *Client) removeObject(ctx context.Context, bucketName, objectName string
 	}
 	if opts.ForceDelete {
 		headers.Set(minIOForceDelete, "true")
+	}
+	if opts.IfMatch != "" {
+		headers.Set("If-Match", quoteETag(opts.IfMatch))
+	}
+	if !opts.IfMatchLastModifiedTime.IsZero() {
+		headers.Set("X-Amz-If-Match-Last-Modified-Time", opts.IfMatchLastModifiedTime.UTC().Format(http.TimeFormat))
+	}
+	if opts.IfMatchSize != nil {
+		headers.Set("X-Amz-If-Match-Size", strconv.FormatInt(*opts.IfMatchSize, 10))
 	}
 	// Execute DELETE on objectName.
 	resp, err := c.executeMethod(ctx, http.MethodDelete, requestMetadata{
